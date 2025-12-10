@@ -369,9 +369,42 @@ const handler = createMcpHandler(
   }
 );
 
-// Use Edge runtime for Web API compatibility
+// Use Node.js runtime (required for EWS and other Node.js dependencies)
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
 export const config = {
-  runtime: 'edge',
+  maxDuration: 60,
 };
 
-export default handler;
+export default async function (req: VercelRequest, res: VercelResponse) {
+  // Convert Vercel req to Web Request
+  const protocol = req.headers['x-forwarded-proto'] || 'https';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
+  const url = `${protocol}://${host}${req.url}`;
+
+  const webRequest = new Request(url, {
+    method: req.method,
+    headers: req.headers as HeadersInit,
+    body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
+  });
+
+  try {
+    // Call the MCP handler
+    const webResponse = await handler(webRequest);
+
+    // Convert Web Response to Vercel res
+    res.status(webResponse.status);
+
+    // Copy headers
+    webResponse.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    // Send body
+    const body = await webResponse.text();
+    res.send(body);
+  } catch (error) {
+    console.error('MCP handler error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

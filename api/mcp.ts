@@ -369,4 +369,9 @@ const handler = createMcpHandler(
   }
 );
 
-export { handler as GET, handler as POST };
+// Use Edge runtime for Web API compatibility
+export const config = {
+  runtime: 'edge',
+};
+
+export default handler;

@@ -3,15 +3,20 @@
  * Exposes the Calendar MCP server via Vercel's serverless functions
  */
 
-import { createMcpHandler } from '@vercel/mcp-adapter';
+import { initMcpApiHandler } from '@vercel/mcp-adapter';
 import { z } from 'zod';
 
 import { CalendarService } from '../../src/services/calendar-service.js';
 import { FreeBusyService } from '../../src/services/free-busy-service.js';
 import { ConflictService } from '../../src/services/conflict-service.js';
 import { SyncService } from '../../src/services/sync-service.js';
-import { createProviders } from '../../src/providers/index.js';
+import { ProviderRegistry, initializeProviders } from '../../src/providers/index.js';
 import { loadConfig } from '../../src/utils/config.js';
+
+// Import provider factories to register them
+import '../../src/providers/google/index.js';
+import '../../src/providers/microsoft/index.js';
+import '../../src/providers/exchange/index.js';
 
 import {
   ListCalendarsInputSchema,
@@ -62,38 +67,36 @@ import {
   formatRespondToInviteResult,
 } from '../../src/tools/respond-to-invite.js';
 import {
-  findMatchingEventsSchema,
   createFindMatchingEventsHandler,
 } from '../../src/tools/find-matching-events.js';
 import {
-  copyEventSchema,
   createCopyEventHandler,
 } from '../../src/tools/copy-event.js';
 import {
-  compareCalendarsSchema,
   createCompareCalendarsHandler,
 } from '../../src/tools/compare-calendars.js';
 
 // Initialize services (will be created on first request)
+let registry: ProviderRegistry | null = null;
 let calendarService: CalendarService | null = null;
 let freeBusyService: FreeBusyService | null = null;
 let conflictService: ConflictService | null = null;
 let syncService: SyncService | null = null;
 
 async function getServices() {
-  if (!calendarService) {
+  if (!registry) {
     const config = loadConfig();
-    const providers = await createProviders(config.providers);
-    calendarService = new CalendarService(providers, config);
-    freeBusyService = new FreeBusyService(calendarService, config);
-    conflictService = new ConflictService(calendarService);
+    registry = await initializeProviders(config.providers);
+    calendarService = new CalendarService(registry);
+    freeBusyService = new FreeBusyService(registry);
+    conflictService = new ConflictService(calendarService, freeBusyService);
     syncService = new SyncService(calendarService);
   }
-  return { calendarService, freeBusyService, conflictService, syncService };
+  return { registry, calendarService: calendarService!, freeBusyService: freeBusyService!, conflictService: conflictService!, syncService: syncService! };
 }
 
 // Create the MCP handler with all tools
-export const { GET, POST } = createMcpHandler(
+const handler = initMcpApiHandler(
   (server) => {
     // List Calendars
     server.tool(
@@ -105,7 +108,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = ListCalendarsInputSchema.parse(args);
-        const result = await executeListCalendars(input, services.calendarService!);
+        const result = await executeListCalendars(input, services.calendarService);
         return { content: [{ type: 'text', text: formatListCalendarsResult(result) }] };
       }
     );
@@ -127,7 +130,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = ListEventsInputSchema.parse(args);
-        const result = await executeListEvents(input, services.calendarService!);
+        const result = await executeListEvents(input, services.calendarService);
         return { content: [{ type: 'text', text: formatListEventsResult(result) }] };
       }
     );
@@ -144,7 +147,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = GetEventInputSchema.parse(args);
-        const result = await executeGetEvent(input, services.calendarService!);
+        const result = await executeGetEvent(input, services.calendarService);
         return { content: [{ type: 'text', text: formatGetEventResult(result) }] };
       }
     );
@@ -177,7 +180,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = CreateEventInputSchema.parse(args);
-        const result = await executeCreateEvent(input, services.calendarService!);
+        const result = await executeCreateEvent(input, services.calendarService);
         return { content: [{ type: 'text', text: formatCreateEventResult(result) }] };
       }
     );
@@ -209,7 +212,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = UpdateEventInputSchema.parse(args);
-        const result = await executeUpdateEvent(input, services.calendarService!);
+        const result = await executeUpdateEvent(input, services.calendarService);
         return { content: [{ type: 'text', text: formatUpdateEventResult(result) }] };
       }
     );
@@ -228,7 +231,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = DeleteEventInputSchema.parse(args);
-        const result = await executeDeleteEvent(input, services.calendarService!);
+        const result = await executeDeleteEvent(input, services.calendarService);
         return { content: [{ type: 'text', text: formatDeleteEventResult(result) }] };
       }
     );
@@ -253,7 +256,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = GetFreeBusyInputSchema.parse(args);
-        const result = await executeGetFreeBusy(input, services.freeBusyService!);
+        const result = await executeGetFreeBusy(input, services.freeBusyService);
         return { content: [{ type: 'text', text: formatFreeBusyResult(result) }] };
       }
     );
@@ -271,7 +274,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = CheckConflictsInputSchema.parse(args);
-        const result = await executeCheckConflicts(input, services.conflictService!);
+        const result = await executeCheckConflicts(input, services.conflictService);
         return { content: [{ type: 'text', text: formatCheckConflictsResult(result) }] };
       }
     );
@@ -290,7 +293,7 @@ export const { GET, POST } = createMcpHandler(
       async (args) => {
         const services = await getServices();
         const input = RespondToInviteInputSchema.parse(args);
-        const result = await executeRespondToInvite(input, services.calendarService!);
+        const result = await executeRespondToInvite(input, services.calendarService);
         return { content: [{ type: 'text', text: formatRespondToInviteResult(result) }] };
       }
     );
@@ -310,7 +313,7 @@ export const { GET, POST } = createMcpHandler(
       },
       async (args) => {
         const services = await getServices();
-        const handler = createFindMatchingEventsHandler(services.syncService!);
+        const handler = createFindMatchingEventsHandler(services.syncService);
         return handler(args);
       }
     );
@@ -330,7 +333,7 @@ export const { GET, POST } = createMcpHandler(
       },
       async (args) => {
         const services = await getServices();
-        const handler = createCopyEventHandler(services.syncService!);
+        const handler = createCopyEventHandler(services.syncService);
         return handler(args);
       }
     );
@@ -349,7 +352,7 @@ export const { GET, POST } = createMcpHandler(
       },
       async (args) => {
         const services = await getServices();
-        const handler = createCompareCalendarsHandler(services.syncService!);
+        const handler = createCompareCalendarsHandler(services.syncService);
         return handler(args);
       }
     );
@@ -364,3 +367,5 @@ export const { GET, POST } = createMcpHandler(
     maxDuration: 60,
   }
 );
+
+export { handler as GET, handler as POST };

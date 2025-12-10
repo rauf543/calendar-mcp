@@ -88,6 +88,7 @@ let syncService: SyncService | null = null;
 async function getServices() {
   if (!registry) {
     const config = loadConfig();
+    console.log('[MCP] Config loaded - timezone:', config.defaults.timezone);
     registry = getRegistry();
 
     // Manually create and register providers (same pattern as src/index.ts)

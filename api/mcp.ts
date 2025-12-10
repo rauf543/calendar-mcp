@@ -7,17 +7,17 @@ import { createMcpHandler } from '@vercel/mcp-adapter';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-import { CalendarService } from '../../src/services/calendar-service.js';
-import { FreeBusyService } from '../../src/services/free-busy-service.js';
-import { ConflictService } from '../../src/services/conflict-service.js';
-import { SyncService } from '../../src/services/sync-service.js';
-import { ProviderRegistry, initializeProviders } from '../../src/providers/index.js';
-import { loadConfig } from '../../src/utils/config.js';
+import { CalendarService } from '../src/services/calendar-service.js';
+import { FreeBusyService } from '../src/services/free-busy-service.js';
+import { ConflictService } from '../src/services/conflict-service.js';
+import { SyncService } from '../src/services/sync-service.js';
+import { ProviderRegistry, initializeProviders } from '../src/providers/index.js';
+import { loadConfig } from '../src/utils/config.js';
 
 // Import provider factories to register them
-import '../../src/providers/google/index.js';
-import '../../src/providers/microsoft/index.js';
-import '../../src/providers/exchange/index.js';
+import '../src/providers/google/index.js';
+import '../src/providers/microsoft/index.js';
+import '../src/providers/exchange/index.js';
 
 import {
   ListCalendarsInputSchema,
@@ -29,53 +29,53 @@ import {
   GetFreeBusyInputSchema,
   CheckConflictsInputSchema,
   RespondToInviteInputSchema,
-} from '../../src/schemas/tool-inputs.js';
+} from '../src/schemas/tool-inputs.js';
 
 import {
   executeListCalendars,
   formatListCalendarsResult,
-} from '../../src/tools/list-calendars.js';
+} from '../src/tools/list-calendars.js';
 import {
   executeListEvents,
   formatListEventsResult,
-} from '../../src/tools/list-events.js';
+} from '../src/tools/list-events.js';
 import {
   executeGetEvent,
   formatGetEventResult,
-} from '../../src/tools/get-event.js';
+} from '../src/tools/get-event.js';
 import {
   executeCreateEvent,
   formatCreateEventResult,
-} from '../../src/tools/create-event.js';
+} from '../src/tools/create-event.js';
 import {
   executeUpdateEvent,
   formatUpdateEventResult,
-} from '../../src/tools/update-event.js';
+} from '../src/tools/update-event.js';
 import {
   executeDeleteEvent,
   formatDeleteEventResult,
-} from '../../src/tools/delete-event.js';
+} from '../src/tools/delete-event.js';
 import {
   executeGetFreeBusy,
   formatFreeBusyResult,
-} from '../../src/tools/get-free-busy.js';
+} from '../src/tools/get-free-busy.js';
 import {
   executeCheckConflicts,
   formatCheckConflictsResult,
-} from '../../src/tools/check-conflicts.js';
+} from '../src/tools/check-conflicts.js';
 import {
   executeRespondToInvite,
   formatRespondToInviteResult,
-} from '../../src/tools/respond-to-invite.js';
+} from '../src/tools/respond-to-invite.js';
 import {
   createFindMatchingEventsHandler,
-} from '../../src/tools/find-matching-events.js';
+} from '../src/tools/find-matching-events.js';
 import {
   createCopyEventHandler,
-} from '../../src/tools/copy-event.js';
+} from '../src/tools/copy-event.js';
 import {
   createCompareCalendarsHandler,
-} from '../../src/tools/compare-calendars.js';
+} from '../src/tools/compare-calendars.js';
 
 // Initialize services (will be created on first request)
 let registry: ProviderRegistry | null = null;

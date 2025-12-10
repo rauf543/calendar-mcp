@@ -6,14 +6,14 @@
   "outputDirectory": "dist",
   "framework": null,
   "functions": {
-    "api/mcp/route.ts": {
+    "api/mcp.ts": {
       "maxDuration": 60
     }
   },
   "rewrites": [
     {
       "source": "/mcp",
-      "destination": "/api/mcp/route"
+      "destination": "/api/mcp"
     }
   ]
 }

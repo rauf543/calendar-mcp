@@ -7,6 +7,7 @@ import type { CalendarEvent } from '../types/index.js';
 import type { CalendarService } from '../services/calendar-service.js';
 import type { GetEventInput } from '../schemas/tool-inputs.js';
 import { DateTime } from 'luxon';
+import { getDefaultTimezone } from '../utils/datetime.js';
 
 /**
  * Execute get_event tool
@@ -23,13 +24,14 @@ export async function executeGetEvent(
  */
 export function formatGetEventResult(event: CalendarEvent): string {
   const lines: string[] = [];
+  const displayTimezone = getDefaultTimezone();
 
   lines.push(`**${event.subject}**`);
   lines.push('');
 
-  // Date and time
-  const startDt = DateTime.fromISO(event.start.dateTime);
-  const endDt = DateTime.fromISO(event.end.dateTime);
+  // Date and time (converted to display timezone)
+  const startDt = DateTime.fromISO(event.start.dateTime).setZone(displayTimezone);
+  const endDt = DateTime.fromISO(event.end.dateTime).setZone(displayTimezone);
 
   if (event.isAllDay) {
     if (startDt.hasSame(endDt, 'day')) {
@@ -40,7 +42,7 @@ export function formatGetEventResult(event: CalendarEvent): string {
   } else {
     if (startDt.hasSame(endDt, 'day')) {
       lines.push(`📅 ${startDt.toFormat('cccc, MMMM d, yyyy')}`);
-      lines.push(`🕐 ${startDt.toFormat('h:mm a')} - ${endDt.toFormat('h:mm a')} (${event.start.timezone})`);
+      lines.push(`🕐 ${startDt.toFormat('h:mm a')} - ${endDt.toFormat('h:mm a')} (${displayTimezone})`);
     } else {
       lines.push(`📅 ${startDt.toFormat('MMM d, h:mm a')} - ${endDt.toFormat('MMM d, h:mm a, yyyy')}`);
     }

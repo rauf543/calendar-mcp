@@ -6,7 +6,7 @@
 import type { CalendarEvent, ProviderError, ListEventsParams } from '../types/index.js';
 import type { CalendarService } from '../services/calendar-service.js';
 import type { ListEventsInput } from '../schemas/tool-inputs.js';
-import { formatDateTime } from '../utils/datetime.js';
+import { formatDateTime, getDefaultTimezone } from '../utils/datetime.js';
 import { DateTime } from 'luxon';
 
 export interface ListEventsResult {
@@ -64,10 +64,13 @@ export function formatListEventsResult(result: ListEventsResult): string {
 
   lines.push(`Found ${result.totalCount} event(s):\n`);
 
-  // Group events by date
+  // Get default timezone for display
+  const displayTimezone = getDefaultTimezone();
+
+  // Group events by date (in display timezone)
   const byDate = new Map<string, CalendarEvent[]>();
   for (const event of result.events) {
-    const dt = DateTime.fromISO(event.start.dateTime);
+    const dt = DateTime.fromISO(event.start.dateTime).setZone(displayTimezone);
     const dateKey = dt.toFormat('yyyy-MM-dd');
     const existing = byDate.get(dateKey) ?? [];
     existing.push(event);
@@ -75,12 +78,12 @@ export function formatListEventsResult(result: ListEventsResult): string {
   }
 
   for (const [dateKey, events] of byDate) {
-    const dt = DateTime.fromISO(dateKey);
+    const dt = DateTime.fromISO(dateKey).setZone(displayTimezone);
     lines.push(`**${dt.toFormat('cccc, MMMM d, yyyy')}**`);
 
     for (const event of events) {
-      const startTime = DateTime.fromISO(event.start.dateTime);
-      const endTime = DateTime.fromISO(event.end.dateTime);
+      const startTime = DateTime.fromISO(event.start.dateTime).setZone(displayTimezone);
+      const endTime = DateTime.fromISO(event.end.dateTime).setZone(displayTimezone);
 
       let timeStr: string;
       if (event.isAllDay) {

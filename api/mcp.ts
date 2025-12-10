@@ -382,9 +382,21 @@ export default async function (req: VercelRequest, res: VercelResponse) {
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
   const url = `${protocol}://${host}${req.url}`;
 
+  // Convert Node.js headers to Web API headers
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value) {
+      if (Array.isArray(value)) {
+        value.forEach(v => headers.append(key, v));
+      } else {
+        headers.set(key, value);
+      }
+    }
+  }
+
   const webRequest = new Request(url, {
     method: req.method,
-    headers: req.headers as HeadersInit,
+    headers,
     body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
   });
 

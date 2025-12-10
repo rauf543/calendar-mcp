@@ -1,0 +1,364 @@
+/**
+ * Exchange EWS Calendar Provider Implementation
+ */
+
+import type {
+  Calendar,
+  CalendarEvent,
+  CreateEventParams,
+  UpdateEventParams,
+  DeleteOptions,
+  ListEventsParams,
+  ResponseType,
+  ExchangeProviderConfig,
+  CalendarFreeBusy,
+  FreeBusyParams,
+  BusySlot,
+  ShowAs,
+} from '../../types/index.js';
+
+// EWS only supports a subset of ShowAs values
+type EwsShowAs = 'free' | 'busy' | 'tentative' | 'oof';
+
+/**
+ * Convert ShowAs to EWS-compatible format
+ * EWS doesn't support 'workingElsewhere', so map it to 'busy'
+ */
+function toEwsShowAs(showAs?: ShowAs): EwsShowAs | undefined {
+  if (!showAs) return undefined;
+  if (showAs === 'workingElsewhere') return 'busy';
+  return showAs;
+}
+import { BaseCalendarProvider, ProviderLogger } from '../base.js';
+import { CalendarMCPError, ErrorCodes } from '../../utils/error.js';
+import { ExchangeAuthManager, createExchangeAuthManager } from './auth.js';
+import { ExchangeEwsClient } from './client.js';
+import { mapEwsCalendar, mapEwsEvent } from './mapper.js';
+
+/**
+ * Exchange EWS Calendar provider implementation
+ */
+export class ExchangeCalendarProvider extends BaseCalendarProvider {
+  private authManager: ExchangeAuthManager;
+  private client: ExchangeEwsClient | null = null;
+  private calendarsCache: Calendar[] | null = null;
+  private cacheTimestamp: number = 0;
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+  constructor(config: ExchangeProviderConfig, logger?: ProviderLogger) {
+    super(config, logger);
+    this.authManager = createExchangeAuthManager(config);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Connection Lifecycle
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async connect(): Promise<void> {
+    this.logger.info(`Connecting to Exchange (${this.displayName})...`);
+
+    try {
+      // Verify we have credentials
+      if (!this.authManager.hasCredentials()) {
+        throw new CalendarMCPError(
+          'No Exchange credentials available',
+          ErrorCodes.AUTH_MISSING,
+          { provider: 'exchange', providerId: this.providerId }
+        );
+      }
+
+      // Create client
+      this.client = new ExchangeEwsClient(this.authManager);
+
+      // Test connection by listing calendar folders
+      await this.client.listCalendarFolders();
+
+      this._connected = true;
+      this.logger.info(`Connected to Exchange (${this.displayName})`);
+    } catch (error) {
+      this._connected = false;
+      throw this.wrapError(error, 'connect');
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    this.client = null;
+    this.calendarsCache = null;
+    this._connected = false;
+    this.logger.info(`Disconnected from Exchange (${this.displayName})`);
+  }
+
+  async refreshAuth(): Promise<void> {
+    // Exchange with NTLM/Basic doesn't need token refresh
+    this.logger.debug('Exchange authentication does not require refresh');
+  }
+
+  private getClient(): ExchangeEwsClient {
+    if (!this.client) {
+      throw new CalendarMCPError(
+        'Exchange EWS client not initialized. Call connect() first.',
+        ErrorCodes.PROVIDER_NOT_CONFIGURED,
+        { provider: 'exchange', providerId: this.providerId }
+      );
+    }
+    return this.client;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Calendar Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async listCalendars(): Promise<Calendar[]> {
+    return this.executeWithErrorHandling('listCalendars', async () => {
+      // Check cache
+      if (
+        this.calendarsCache &&
+        Date.now() - this.cacheTimestamp < this.CACHE_TTL_MS
+      ) {
+        return this.calendarsCache;
+      }
+
+      const folders = await this.getClient().listCalendarFolders();
+      const calendars = folders.map(f =>
+        mapEwsCalendar(
+          { FolderId: { Id: f.id }, DisplayName: f.name },
+          this.providerId,
+          this.email
+        )
+      );
+
+      // Update cache
+      this.calendarsCache = calendars;
+      this.cacheTimestamp = Date.now();
+
+      return calendars;
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Event Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async listEvents(params: ListEventsParams): Promise<CalendarEvent[]> {
+    return this.executeWithErrorHandling('listEvents', async () => {
+      const calendars = await this.listCalendars();
+
+      // Get the primary calendar
+      const targetCalendar = calendars[0];
+      if (!targetCalendar) {
+        return [];
+      }
+
+      const appointments = await this.getClient().listEvents({
+        folderId: targetCalendar.id,
+        startDate: new Date(params.startTime),
+        endDate: new Date(params.endTime),
+        maxResults: params.maxResults,
+      });
+
+      let events = appointments.map(apt =>
+        mapEwsEvent(this.appointmentToObject(apt), targetCalendar.id)
+      );
+
+      // Sort by start time
+      events.sort((a, b) => {
+        const aTime = new Date(a.start.dateTime).getTime();
+        const bTime = new Date(b.start.dateTime).getTime();
+        return aTime - bTime;
+      });
+
+      // Apply max results
+      if (params.maxResults) {
+        events = events.slice(0, params.maxResults);
+      }
+
+      return events;
+    });
+  }
+
+  /**
+   * Convert EWS Appointment to plain object for mapping
+   * Safely handles properties that may not be loaded
+   */
+  private appointmentToObject(apt: any): any {
+    // Helper to safely access EWS properties that may not be loaded
+    const safeGet = <T>(fn: () => T, defaultValue?: T): T | undefined => {
+      try {
+        return fn();
+      } catch {
+        return defaultValue;
+      }
+    };
+
+    return {
+      ItemId: apt.Id ? { Id: apt.Id.UniqueId } : undefined,
+      Subject: safeGet(() => apt.Subject),
+      Body: safeGet(() => apt.Body ? { Content: apt.Body.Text, BodyType: apt.Body.BodyType?.toString() } : undefined),
+      Start: safeGet(() => apt.Start?.ToISOString()),
+      End: safeGet(() => apt.End?.ToISOString()),
+      IsAllDayEvent: safeGet(() => apt.IsAllDayEvent),
+      Location: safeGet(() => apt.Location),
+      RequiredAttendees: safeGet(() => apt.RequiredAttendees?.Items?.map((a: any) => ({
+        Mailbox: { EmailAddress: a.Address, Name: a.Name },
+        ResponseType: a.ResponseType?.toString(),
+      }))),
+      OptionalAttendees: safeGet(() => apt.OptionalAttendees?.Items?.map((a: any) => ({
+        Mailbox: { EmailAddress: a.Address, Name: a.Name },
+        ResponseType: a.ResponseType?.toString(),
+      }))),
+      Organizer: safeGet(() => apt.Organizer ? {
+        Mailbox: { EmailAddress: apt.Organizer.Address, Name: apt.Organizer.Name },
+      } : undefined),
+      LegacyFreeBusyStatus: safeGet(() => apt.LegacyFreeBusyStatus?.toString()),
+      Sensitivity: safeGet(() => apt.Sensitivity?.toString()),
+      ICalUid: safeGet(() => apt.ICalUid),
+      IsRecurring: safeGet(() => apt.IsRecurring),
+      IsCancelled: safeGet(() => apt.IsCancelled),
+      MyResponseType: safeGet(() => apt.MyResponseType?.toString()),
+      DateTimeCreated: safeGet(() => apt.DateTimeCreated?.ToISOString()),
+      LastModifiedTime: safeGet(() => apt.LastModifiedTime?.ToISOString()),
+    };
+  }
+
+  async getEvent(eventId: string, calendarId?: string): Promise<CalendarEvent> {
+    return this.executeWithErrorHandling('getEvent', async () => {
+      const apt = await this.getClient().getAppointment(eventId);
+      const targetCalendarId = calendarId ?? (await this.listCalendars())[0]?.id ?? '';
+      return mapEwsEvent(this.appointmentToObject(apt), targetCalendarId);
+    });
+  }
+
+  async createEvent(
+    event: CreateEventParams,
+    calendarId?: string
+  ): Promise<CalendarEvent> {
+    return this.executeWithErrorHandling('createEvent', async () => {
+      const apt = await this.getClient().createAppointment({
+        subject: event.subject,
+        body: event.body,
+        bodyType: event.bodyType,
+        start: new Date(event.startTime),
+        end: new Date(event.endTime),
+        location: event.location,
+        isAllDay: event.isAllDay,
+        requiredAttendees: event.attendees
+          ?.filter(a => a.type !== 'optional')
+          .map(a => a.email),
+        optionalAttendees: event.attendees
+          ?.filter(a => a.type === 'optional')
+          .map(a => a.email),
+        showAs: toEwsShowAs(event.showAs),
+        sensitivity: event.sensitivity,
+        sendInvites: event.sendInvites,
+      });
+
+      const targetCalendarId = calendarId ?? (await this.listCalendars())[0]?.id ?? '';
+      return mapEwsEvent(this.appointmentToObject(apt), targetCalendarId);
+    });
+  }
+
+  async updateEvent(
+    eventId: string,
+    updates: UpdateEventParams,
+    calendarId?: string
+  ): Promise<CalendarEvent> {
+    return this.executeWithErrorHandling('updateEvent', async () => {
+      const apt = await this.getClient().updateAppointment(eventId, {
+        subject: updates.subject,
+        body: updates.body,
+        bodyType: updates.bodyType,
+        start: updates.startTime ? new Date(updates.startTime) : undefined,
+        end: updates.endTime ? new Date(updates.endTime) : undefined,
+        location: updates.location,
+        showAs: toEwsShowAs(updates.showAs),
+        sensitivity: updates.sensitivity,
+        sendUpdates: updates.sendUpdates,
+      });
+
+      const targetCalendarId = calendarId ?? (await this.listCalendars())[0]?.id ?? '';
+      return mapEwsEvent(this.appointmentToObject(apt), targetCalendarId);
+    });
+  }
+
+  async deleteEvent(
+    eventId: string,
+    options?: DeleteOptions,
+    calendarId?: string
+  ): Promise<void> {
+    return this.executeWithErrorHandling('deleteEvent', async () => {
+      await this.getClient().deleteAppointment(eventId, options?.sendCancellation);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Availability
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getFreeBusy(params: FreeBusyParams): Promise<CalendarFreeBusy> {
+    return this.executeWithErrorHandling('getFreeBusy', async () => {
+      const busyTimes = await this.getClient().getFreeBusy({
+        startTime: new Date(params.startTime),
+        endTime: new Date(params.endTime),
+      });
+
+      const busySlots: BusySlot[] = busyTimes.map(bt => ({
+        start: bt.start,
+        end: bt.end,
+        status: bt.status === 'Busy' ? 'busy' :
+               bt.status === 'Tentative' ? 'tentative' :
+               bt.status === 'OOF' ? 'oof' : 'busy',
+      }));
+
+      const calendars = await this.listCalendars();
+      const primaryCalendar = calendars[0];
+
+      return {
+        provider: 'exchange',
+        calendarId: primaryCalendar?.id ?? 'default',
+        calendarName: primaryCalendar?.name ?? this.displayName,
+        busy: busySlots,
+      };
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Meeting Responses
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async respondToEvent(
+    eventId: string,
+    response: ResponseType,
+    calendarId?: string,
+    message?: string
+  ): Promise<void> {
+    return this.executeWithErrorHandling('respondToEvent', async () => {
+      const ewsResponse =
+        response === 'accepted' ? 'accept' :
+        response === 'declined' ? 'decline' : 'tentative';
+
+      await this.getClient().respondToMeeting(eventId, ewsResponse, message);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Helper Methods
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Invalidate the calendars cache
+   */
+  invalidateCache(): void {
+    this.calendarsCache = null;
+    this.cacheTimestamp = 0;
+  }
+}
+
+/**
+ * Factory function for creating Exchange providers
+ */
+export function createExchangeProvider(
+  config: ExchangeProviderConfig,
+  logger?: ProviderLogger
+): ExchangeCalendarProvider {
+  return new ExchangeCalendarProvider(config, logger);
+}

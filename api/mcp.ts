@@ -364,8 +364,13 @@ const handler = createMcpHandler(
     },
   },
   {
-    basePath: '/api/mcp',
+    // Set basePath to '/api' so endpoints become:
+    // - /api/mcp (streamable HTTP)
+    // - /api/sse (SSE transport)
+    // - /api/message (SSE messages)
+    basePath: '/api',
     maxDuration: 60,
+    verboseLogs: true,
   }
 );
 

@@ -459,10 +459,10 @@ export default async function (req: VercelRequest, res: VercelResponse) {
     // Send body
     const body = await webResponse.text();
     console.log('[MCP] Response body length:', body.length);
-    res.send(body);
+    return res.send(body);
   } catch (error) {
     console.error('[MCP] Handler error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined

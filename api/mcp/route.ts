@@ -3,7 +3,8 @@
  * Exposes the Calendar MCP server via Vercel's serverless functions
  */
 
-import { initMcpApiHandler } from '@vercel/mcp-adapter';
+import { createMcpHandler } from '@vercel/mcp-adapter';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 import { CalendarService } from '../../src/services/calendar-service.js';
@@ -96,8 +97,8 @@ async function getServices() {
 }
 
 // Create the MCP handler with all tools
-const handler = initMcpApiHandler(
-  (server) => {
+const handler = createMcpHandler(
+  (server: McpServer) => {
     // List Calendars
     server.tool(
       'list_calendars',
@@ -105,11 +106,11 @@ const handler = initMcpApiHandler(
       {
         provider: z.enum(['all', 'google', 'microsoft', 'exchange']).default('all').describe('Filter by provider type, or "all" for all providers'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = ListCalendarsInputSchema.parse(args);
         const result = await executeListCalendars(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatListCalendarsResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatListCalendarsResult(result) }] };
       }
     );
 
@@ -127,11 +128,11 @@ const handler = initMcpApiHandler(
         orderBy: z.enum(['start', 'updated']).default('start').describe('Sort order'),
         expandRecurring: z.boolean().default(true).describe('Whether to expand recurring events into instances'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = ListEventsInputSchema.parse(args);
         const result = await executeListEvents(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatListEventsResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatListEventsResult(result) }] };
       }
     );
 
@@ -144,11 +145,11 @@ const handler = initMcpApiHandler(
         provider: z.enum(['google', 'microsoft', 'exchange']).describe('Which provider the event belongs to'),
         calendarId: z.string().optional().describe('Calendar ID (required for some providers)'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = GetEventInputSchema.parse(args);
         const result = await executeGetEvent(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatGetEventResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatGetEventResult(result) }] };
       }
     );
 
@@ -177,11 +178,11 @@ const handler = initMcpApiHandler(
         showAs: z.enum(['free', 'busy', 'tentative', 'oof', 'workingElsewhere']).default('busy').describe('How to show the time'),
         timezone: z.string().optional().describe('Timezone (IANA format, default: user timezone)'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = CreateEventInputSchema.parse(args);
         const result = await executeCreateEvent(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatCreateEventResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatCreateEventResult(result) }] };
       }
     );
 
@@ -209,11 +210,11 @@ const handler = initMcpApiHandler(
         updateScope: z.enum(['single', 'thisAndFuture', 'all']).default('single').describe('For recurring events: what to update'),
         sendUpdates: z.boolean().default(true).describe('Whether to send updates to attendees'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = UpdateEventInputSchema.parse(args);
         const result = await executeUpdateEvent(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatUpdateEventResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatUpdateEventResult(result) }] };
       }
     );
 
@@ -228,11 +229,11 @@ const handler = initMcpApiHandler(
         deleteScope: z.enum(['single', 'thisAndFuture', 'all']).default('single').describe('For recurring events: what to delete'),
         sendCancellation: z.boolean().optional().describe('Whether to send cancellation notices (default: true if has attendees)'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = DeleteEventInputSchema.parse(args);
         const result = await executeDeleteEvent(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatDeleteEventResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatDeleteEventResult(result) }] };
       }
     );
 
@@ -253,11 +254,11 @@ const handler = initMcpApiHandler(
           days: z.array(z.string()),
         }).optional().describe('Custom working hours configuration'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = GetFreeBusyInputSchema.parse(args);
         const result = await executeGetFreeBusy(input, services.freeBusyService);
-        return { content: [{ type: 'text', text: formatFreeBusyResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatFreeBusyResult(result) }] };
       }
     );
 
@@ -271,11 +272,11 @@ const handler = initMcpApiHandler(
         excludeEventId: z.string().optional().describe('Event ID to exclude (for rescheduling)'),
         excludeProvider: z.enum(['google', 'microsoft', 'exchange']).optional().describe('Provider of excluded event'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = CheckConflictsInputSchema.parse(args);
         const result = await executeCheckConflicts(input, services.conflictService);
-        return { content: [{ type: 'text', text: formatCheckConflictsResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatCheckConflictsResult(result) }] };
       }
     );
 
@@ -290,11 +291,11 @@ const handler = initMcpApiHandler(
         calendarId: z.string().optional().describe('Calendar ID'),
         message: z.string().max(1000).optional().describe('Optional response message'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const input = RespondToInviteInputSchema.parse(args);
         const result = await executeRespondToInvite(input, services.calendarService);
-        return { content: [{ type: 'text', text: formatRespondToInviteResult(result) }] };
+        return { content: [{ type: 'text' as const, text: formatRespondToInviteResult(result) }] };
       }
     );
 
@@ -311,7 +312,7 @@ const handler = initMcpApiHandler(
         target_calendar_id: z.string().optional().describe('Target calendar ID (defaults to primary)'),
         min_confidence: z.enum(['high', 'medium', 'low']).optional().describe('Minimum match confidence (default: low)'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const handler = createFindMatchingEventsHandler(services.syncService);
         return handler(args);
@@ -331,7 +332,7 @@ const handler = initMcpApiHandler(
         include_attendees: z.boolean().optional().describe('Include attendees in copy (default: false)'),
         include_body: z.boolean().optional().describe('Include event body/description (default: true)'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const handler = createCopyEventHandler(services.syncService);
         return handler(args);
@@ -350,7 +351,7 @@ const handler = initMcpApiHandler(
         source_calendar_id: z.string().optional().describe('Source calendar ID (defaults to primary)'),
         target_calendar_id: z.string().optional().describe('Target calendar ID (defaults to primary)'),
       },
-      async (args) => {
+      async (args: Record<string, unknown>) => {
         const services = await getServices();
         const handler = createCompareCalendarsHandler(services.syncService);
         return handler(args);

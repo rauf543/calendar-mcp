@@ -11,13 +11,14 @@ import { CalendarService } from '../src/services/calendar-service.js';
 import { FreeBusyService } from '../src/services/free-busy-service.js';
 import { ConflictService } from '../src/services/conflict-service.js';
 import { SyncService } from '../src/services/sync-service.js';
-import { ProviderRegistry, initializeProviders } from '../src/providers/index.js';
+import { ProviderRegistry, getRegistry } from '../src/providers/index.js';
 import { loadConfig } from '../src/utils/config.js';
 
-// Import provider factories to register them
-import '../src/providers/google/index.js';
-import '../src/providers/microsoft/index.js';
-import '../src/providers/exchange/index.js';
+// Import provider classes for manual registration
+import { GoogleCalendarProvider } from '../src/providers/google/index.js';
+import { MicrosoftCalendarProvider } from '../src/providers/microsoft/index.js';
+import { ExchangeCalendarProvider } from '../src/providers/exchange/index.js';
+import type { GoogleProviderConfig, MicrosoftProviderConfig, ExchangeProviderConfig } from '../src/types/index.js';
 
 import {
   ListCalendarsInputSchema,
@@ -87,7 +88,32 @@ let syncService: SyncService | null = null;
 async function getServices() {
   if (!registry) {
     const config = loadConfig();
-    registry = await initializeProviders(config.providers);
+    registry = getRegistry();
+
+    // Manually create and register providers (same pattern as src/index.ts)
+    for (const providerConfig of config.providers) {
+      if (!providerConfig.enabled) continue;
+
+      try {
+        if (providerConfig.type === 'google') {
+          const googleProvider = new GoogleCalendarProvider(providerConfig as GoogleProviderConfig);
+          await googleProvider.connect();
+          registry.register(googleProvider);
+        } else if (providerConfig.type === 'microsoft') {
+          const microsoftProvider = new MicrosoftCalendarProvider(providerConfig as MicrosoftProviderConfig);
+          await microsoftProvider.connect();
+          registry.register(microsoftProvider);
+        } else if (providerConfig.type === 'exchange') {
+          const exchangeProvider = new ExchangeCalendarProvider(providerConfig as ExchangeProviderConfig);
+          await exchangeProvider.connect();
+          registry.register(exchangeProvider);
+        }
+        console.log(`[MCP] Registered provider: ${providerConfig.id} (${providerConfig.type})`);
+      } catch (error) {
+        console.error(`[MCP] Failed to initialize provider ${providerConfig.id}:`, error);
+      }
+    }
+
     calendarService = new CalendarService(registry);
     freeBusyService = new FreeBusyService(registry);
     conflictService = new ConflictService(calendarService, freeBusyService);

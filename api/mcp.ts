@@ -377,10 +377,20 @@ export const config = {
 };
 
 export default async function (req: VercelRequest, res: VercelResponse) {
+  console.log('[MCP] Request received:', req.method, req.url);
+
+  // Health check endpoint
+  if (req.url === '/api/mcp/health' || req.query?.health === 'true') {
+    console.log('[MCP] Health check response');
+    return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  }
+
   // Convert Vercel req to Web Request
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
   const url = `${protocol}://${host}${req.url}`;
+
+  console.log('[MCP] Constructed URL:', url);
 
   // Convert Node.js headers to Web API headers
   const headers = new Headers();
@@ -401,8 +411,11 @@ export default async function (req: VercelRequest, res: VercelResponse) {
   });
 
   try {
+    console.log('[MCP] Calling handler...');
     // Call the MCP handler
     const webResponse = await handler(webRequest);
+
+    console.log('[MCP] Handler returned status:', webResponse.status);
 
     // Convert Web Response to Vercel res
     res.status(webResponse.status);
@@ -414,9 +427,14 @@ export default async function (req: VercelRequest, res: VercelResponse) {
 
     // Send body
     const body = await webResponse.text();
+    console.log('[MCP] Response body length:', body.length);
     res.send(body);
   } catch (error) {
-    console.error('MCP handler error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[MCP] Handler error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
   }
 }

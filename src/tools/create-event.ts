@@ -7,6 +7,7 @@ import type { CalendarEvent, CreateEventParams, AttendeeInput, RecurrenceInput }
 import type { CalendarService } from '../services/calendar-service.js';
 import type { CreateEventInput } from '../schemas/tool-inputs.js';
 import { DateTime } from 'luxon';
+import { getDefaultTimezone } from '../utils/datetime.js';
 
 /**
  * Execute create_event tool
@@ -42,19 +43,20 @@ export async function executeCreateEvent(
  */
 export function formatCreateEventResult(event: CalendarEvent): string {
   const lines: string[] = [];
+  const displayTimezone = getDefaultTimezone();
 
   lines.push('✅ Event created successfully!');
   lines.push('');
   lines.push(`**${event.subject}**`);
 
-  const startDt = DateTime.fromISO(event.start.dateTime);
-  const endDt = DateTime.fromISO(event.end.dateTime);
+  const startDt = DateTime.fromISO(event.start.dateTime).setZone(displayTimezone);
+  const endDt = DateTime.fromISO(event.end.dateTime).setZone(displayTimezone);
 
   if (event.isAllDay) {
     lines.push(`📅 ${startDt.toFormat('cccc, MMMM d, yyyy')} (All day)`);
   } else {
     lines.push(`📅 ${startDt.toFormat('cccc, MMMM d, yyyy')}`);
-    lines.push(`🕐 ${startDt.toFormat('h:mm a')} - ${endDt.toFormat('h:mm a')}`);
+    lines.push(`🕐 ${startDt.toFormat('h:mm a')} - ${endDt.toFormat('h:mm a')} (${displayTimezone})`);
   }
 
   if (event.location) {

@@ -7,6 +7,7 @@ import type { FreeBusyParams, FreeBusyResponse, FreeSlot } from '../types/index.
 import type { FreeBusyService } from '../services/free-busy-service.js';
 import type { GetFreeBusyInput } from '../schemas/tool-inputs.js';
 import { DateTime } from 'luxon';
+import { getDefaultTimezone } from '../utils/datetime.js';
 
 /**
  * Execute get_free_busy tool
@@ -33,17 +34,19 @@ export async function executeGetFreeBusy(
  */
 export function formatFreeBusyResult(result: FreeBusyResponse): string {
   const lines: string[] = [];
+  const displayTimezone = getDefaultTimezone();
 
   // Summary
   lines.push('**Availability Summary**');
+  lines.push(`(Times shown in ${displayTimezone})`);
   lines.push('');
 
   // Busy times
   if (result.unified.busy.length > 0) {
     lines.push(`🔴 **Busy Times (${result.unified.busy.length}):**`);
     for (const slot of result.unified.busy) {
-      const start = DateTime.fromISO(slot.start);
-      const end = DateTime.fromISO(slot.end);
+      const start = DateTime.fromISO(slot.start).setZone(displayTimezone);
+      const end = DateTime.fromISO(slot.end).setZone(displayTimezone);
       const dateStr = start.toFormat('EEE, MMM d');
       const timeStr = `${start.toFormat('h:mm a')} - ${end.toFormat('h:mm a')}`;
       lines.push(`   ${dateStr}: ${timeStr}`);
@@ -58,10 +61,10 @@ export function formatFreeBusyResult(result: FreeBusyResponse): string {
   if (result.unified.free.length > 0) {
     lines.push(`🟢 **Free Times (${result.unified.free.length}):**`);
 
-    // Group by date
+    // Group by date (in display timezone)
     const byDate = new Map<string, FreeSlot[]>();
     for (const slot of result.unified.free) {
-      const dt = DateTime.fromISO(slot.start);
+      const dt = DateTime.fromISO(slot.start).setZone(displayTimezone);
       const dateKey = dt.toFormat('yyyy-MM-dd');
       const existing = byDate.get(dateKey) ?? [];
       existing.push(slot);
@@ -69,11 +72,11 @@ export function formatFreeBusyResult(result: FreeBusyResponse): string {
     }
 
     for (const [dateKey, slots] of byDate) {
-      const dt = DateTime.fromISO(dateKey);
+      const dt = DateTime.fromISO(dateKey).setZone(displayTimezone);
       lines.push(`   **${dt.toFormat('EEE, MMM d')}:**`);
       for (const slot of slots) {
-        const start = DateTime.fromISO(slot.start);
-        const end = DateTime.fromISO(slot.end);
+        const start = DateTime.fromISO(slot.start).setZone(displayTimezone);
+        const end = DateTime.fromISO(slot.end).setZone(displayTimezone);
         const duration = slot.durationMinutes;
         const durationStr = duration >= 60
           ? `${Math.floor(duration / 60)}h ${duration % 60}m`
@@ -89,8 +92,8 @@ export function formatFreeBusyResult(result: FreeBusyResponse): string {
     lines.push(`💡 **Suggested Meeting Slots:**`);
     for (let i = 0; i < result.suggestedSlots.length; i++) {
       const slot = result.suggestedSlots[i]!;
-      const start = DateTime.fromISO(slot.start);
-      const end = DateTime.fromISO(slot.end);
+      const start = DateTime.fromISO(slot.start).setZone(displayTimezone);
+      const end = DateTime.fromISO(slot.end).setZone(displayTimezone);
       lines.push(`   ${i + 1}. ${start.toFormat('EEE, MMM d')}: ${start.toFormat('h:mm a')} - ${end.toFormat('h:mm a')}`);
     }
     lines.push('');

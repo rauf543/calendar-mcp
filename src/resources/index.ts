@@ -157,10 +157,10 @@ export function createResourceHandlers(
         endTime: endOfWeek.toISO()!,
       });
 
-      // Group events by day
+      // Group events by day (in display timezone)
       const eventsByDay: Record<string, typeof result.events> = {};
       for (const event of result.events) {
-        const day = DateTime.fromISO(event.start.dateTime).toISODate()!;
+        const day = DateTime.fromISO(event.start.dateTime).setZone(timezone).toISODate()!;
         if (!eventsByDay[day]) {
           eventsByDay[day] = [];
         }
@@ -171,7 +171,7 @@ export function createResourceHandlers(
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, dayEvents]) => ({
           date,
-          dayOfWeek: DateTime.fromISO(date).weekdayLong,
+          dayOfWeek: DateTime.fromISO(date).setZone(timezone).weekdayLong,
           eventCount: dayEvents.length,
           events: dayEvents.map(event => ({
             id: event.id,

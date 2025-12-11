@@ -16,6 +16,7 @@ import type {
   BusySlot,
   ShowAs,
 } from '../../types/index.js';
+import { parseDateTime, getDefaultTimezone } from '../../utils/datetime.js';
 
 // EWS only supports a subset of ShowAs values
 type EwsShowAs = 'free' | 'busy' | 'tentative' | 'oof';
@@ -254,13 +255,19 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
     return this.executeWithErrorHandling('createEvent', async () => {
       const targetCalendar = await this.getTargetCalendar(calendarId);
 
+      // Parse times in the context of the provided timezone
+      // This ensures naive ISO strings (without Z or offset) are interpreted correctly
+      const timezone = event.timezone ?? getDefaultTimezone();
+      const startDt = parseDateTime(event.startTime, timezone);
+      const endDt = parseDateTime(event.endTime, timezone);
+
       const apt = await this.getClient().createAppointment({
         folderId: targetCalendar?.id,
         subject: event.subject,
         body: event.body,
         bodyType: event.bodyType,
-        start: new Date(event.startTime),
-        end: new Date(event.endTime),
+        start: startDt.toJSDate(),
+        end: endDt.toJSDate(),
         location: event.location,
         isAllDay: event.isAllDay,
         requiredAttendees: event.attendees
@@ -284,12 +291,21 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
     calendarId?: string
   ): Promise<CalendarEvent> {
     return this.executeWithErrorHandling('updateEvent', async () => {
+      // Parse times in the context of the provided timezone if updating times
+      const timezone = updates.timezone ?? getDefaultTimezone();
+      const startDate = updates.startTime
+        ? parseDateTime(updates.startTime, timezone).toJSDate()
+        : undefined;
+      const endDate = updates.endTime
+        ? parseDateTime(updates.endTime, timezone).toJSDate()
+        : undefined;
+
       const apt = await this.getClient().updateAppointment(eventId, {
         subject: updates.subject,
         body: updates.body,
         bodyType: updates.bodyType,
-        start: updates.startTime ? new Date(updates.startTime) : undefined,
-        end: updates.endTime ? new Date(updates.endTime) : undefined,
+        start: startDate,
+        end: endDate,
         location: updates.location,
         showAs: toEwsShowAs(updates.showAs),
         sensitivity: updates.sensitivity,

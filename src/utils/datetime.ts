@@ -15,14 +15,17 @@ export function getDefaultTimezone(): string {
 
 /**
  * Parse an ISO datetime string to Luxon DateTime
+ *
+ * If timezone is provided, naive datetime strings (without offset or Z suffix)
+ * are interpreted as being in that timezone. Strings with explicit offsets
+ * are parsed with that offset, then converted to the requested timezone.
  */
 export function parseDateTime(isoString: string, timezone?: string): DateTime {
-  const dt = DateTime.fromISO(isoString);
+  const dt = timezone
+    ? DateTime.fromISO(isoString, { zone: timezone })
+    : DateTime.fromISO(isoString);
   if (!dt.isValid) {
     throw new Error(`Invalid datetime: ${isoString}`);
-  }
-  if (timezone) {
-    return dt.setZone(timezone);
   }
   return dt;
 }

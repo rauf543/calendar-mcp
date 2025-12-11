@@ -124,7 +124,7 @@ export const toolDefinitions = [
   },
   {
     name: 'create_event',
-    description: 'Create a new calendar event. Supports attendees, recurrence, online meetings (Teams/Meet), and custom reminders.',
+    description: 'Create a new calendar event. Supports attendees, recurrence, online meetings (Teams/Meet), and custom reminders. IMPORTANT: If the user has more than one calendar connected, ALWAYS ask which calendar to create the event on - never assume.',
     inputSchema: zodToJsonSchema(CreateEventInputSchema),
   },
   {

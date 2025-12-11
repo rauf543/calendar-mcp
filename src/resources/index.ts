@@ -171,7 +171,8 @@ export function createResourceHandlers(
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, dayEvents]) => ({
           date,
-          dayOfWeek: DateTime.fromISO(date).setZone(timezone).weekdayLong,
+          // Parse date string directly in display timezone to avoid day drift
+          dayOfWeek: DateTime.fromFormat(date, 'yyyy-MM-dd', { zone: timezone }).weekdayLong,
           eventCount: dayEvents.length,
           events: dayEvents.map(event => ({
             id: event.id,

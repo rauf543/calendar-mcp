@@ -72,7 +72,8 @@ export function formatFreeBusyResult(result: FreeBusyResponse): string {
     }
 
     for (const [dateKey, slots] of byDate) {
-      const dt = DateTime.fromISO(dateKey).setZone(displayTimezone);
+      // Parse date string directly in display timezone to avoid day drift
+      const dt = DateTime.fromFormat(dateKey, 'yyyy-MM-dd', { zone: displayTimezone });
       lines.push(`   **${dt.toFormat('EEE, MMM d')}:**`);
       for (const slot of slots) {
         const start = DateTime.fromISO(slot.start).setZone(displayTimezone);

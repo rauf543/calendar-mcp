@@ -78,7 +78,8 @@ export function formatListEventsResult(result: ListEventsResult): string {
   }
 
   for (const [dateKey, events] of byDate) {
-    const dt = DateTime.fromISO(dateKey).setZone(displayTimezone);
+    // Parse date string directly in display timezone to avoid day drift
+    const dt = DateTime.fromFormat(dateKey, 'yyyy-MM-dd', { zone: displayTimezone });
     lines.push(`**${dt.toFormat('cccc, MMMM d, yyyy')}**`);
 
     for (const event of events) {

@@ -78,49 +78,59 @@ import {
   createCompareCalendarsHandler,
 } from '../src/tools/compare-calendars.js';
 
-// Initialize services (will be created on first request)
-let registry: ProviderRegistry | null = null;
-let calendarService: CalendarService | null = null;
-let freeBusyService: FreeBusyService | null = null;
-let conflictService: ConflictService | null = null;
-let syncService: SyncService | null = null;
+// Service types for memoization
+interface Services {
+  registry: ProviderRegistry;
+  calendarService: CalendarService;
+  freeBusyService: FreeBusyService;
+  conflictService: ConflictService;
+  syncService: SyncService;
+}
 
-async function getServices() {
-  if (!registry) {
-    const config = loadConfig();
-    console.log('[MCP] Config loaded - timezone:', config.defaults.timezone);
-    registry = getRegistry();
+// Use promise memoization to prevent race conditions in serverless environment
+// The promise is assigned synchronously, so concurrent requests share the same initialization
+let servicesPromise: Promise<Services> | null = null;
 
-    // Manually create and register providers (same pattern as src/index.ts)
-    for (const providerConfig of config.providers) {
-      if (!providerConfig.enabled) continue;
+function getServices(): Promise<Services> {
+  if (!servicesPromise) {
+    servicesPromise = (async () => {
+      const config = loadConfig();
+      console.log('[MCP] Config loaded - timezone:', config.defaults.timezone);
+      const registry = getRegistry();
 
-      try {
-        if (providerConfig.type === 'google') {
-          const googleProvider = new GoogleCalendarProvider(providerConfig as GoogleProviderConfig);
-          await googleProvider.connect();
-          registry.register(googleProvider);
-        } else if (providerConfig.type === 'microsoft') {
-          const microsoftProvider = new MicrosoftCalendarProvider(providerConfig as MicrosoftProviderConfig);
-          await microsoftProvider.connect();
-          registry.register(microsoftProvider);
-        } else if (providerConfig.type === 'exchange') {
-          const exchangeProvider = new ExchangeCalendarProvider(providerConfig as ExchangeProviderConfig);
-          await exchangeProvider.connect();
-          registry.register(exchangeProvider);
+      // Manually create and register providers (same pattern as src/index.ts)
+      for (const providerConfig of config.providers) {
+        if (!providerConfig.enabled) continue;
+
+        try {
+          if (providerConfig.type === 'google') {
+            const googleProvider = new GoogleCalendarProvider(providerConfig as GoogleProviderConfig);
+            await googleProvider.connect();
+            registry.register(googleProvider);
+          } else if (providerConfig.type === 'microsoft') {
+            const microsoftProvider = new MicrosoftCalendarProvider(providerConfig as MicrosoftProviderConfig);
+            await microsoftProvider.connect();
+            registry.register(microsoftProvider);
+          } else if (providerConfig.type === 'exchange') {
+            const exchangeProvider = new ExchangeCalendarProvider(providerConfig as ExchangeProviderConfig);
+            await exchangeProvider.connect();
+            registry.register(exchangeProvider);
+          }
+          console.log(`[MCP] Registered provider: ${providerConfig.id} (${providerConfig.type})`);
+        } catch (error) {
+          console.error(`[MCP] Failed to initialize provider ${providerConfig.id}:`, error);
         }
-        console.log(`[MCP] Registered provider: ${providerConfig.id} (${providerConfig.type})`);
-      } catch (error) {
-        console.error(`[MCP] Failed to initialize provider ${providerConfig.id}:`, error);
       }
-    }
 
-    calendarService = new CalendarService(registry);
-    freeBusyService = new FreeBusyService(registry);
-    conflictService = new ConflictService(calendarService, freeBusyService);
-    syncService = new SyncService(calendarService);
+      const calendarService = new CalendarService(registry);
+      const freeBusyService = new FreeBusyService(registry);
+      const conflictService = new ConflictService(calendarService, freeBusyService);
+      const syncService = new SyncService(calendarService);
+
+      return { registry, calendarService, freeBusyService, conflictService, syncService };
+    })();
   }
-  return { registry, calendarService: calendarService!, freeBusyService: freeBusyService!, conflictService: conflictService!, syncService: syncService! };
+  return servicesPromise;
 }
 
 // Create the MCP handler with all tools

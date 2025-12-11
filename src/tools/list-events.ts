@@ -93,7 +93,9 @@ export function formatListEventsResult(result: ListEventsResult): string {
         timeStr = `${startTime.toFormat('h:mm a')} - ${endTime.toFormat('h:mm a')}`;
       }
 
-      const providerBadge = `[${event.provider}]`;
+      // Show provider and account email to differentiate multiple accounts
+      const accountInfo = event.calendarEmail ? `${event.provider}:${event.calendarEmail}` : event.provider;
+      const providerBadge = `[${accountInfo}]`;
       const recurringBadge = event.isRecurring ? ' 🔁' : '';
       const meetingBadge = event.isOnlineMeeting ? ' 📹' : '';
 

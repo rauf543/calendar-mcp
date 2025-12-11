@@ -107,6 +107,8 @@ export interface CalendarEvent {
   provider: ProviderType;
   /** Calendar ID this event belongs to */
   calendarId: string;
+  /** Email/account associated with this calendar (for display when multiple accounts exist) */
+  calendarEmail?: string;
   /** Universal calendar ID (iCalendar UID) for cross-provider matching */
   iCalUId?: string;
 

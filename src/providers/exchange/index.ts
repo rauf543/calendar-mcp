@@ -165,7 +165,7 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
             maxResults: params.maxResults,
           });
           return appointments.map(apt =>
-            mapEwsEvent(this.appointmentToObject(apt), calendar.id)
+            mapEwsEvent(this.appointmentToObject(apt), calendar.id, calendar.email)
           );
         } catch (error) {
           this.logger.warn(
@@ -242,8 +242,11 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
   async getEvent(eventId: string, calendarId?: string): Promise<CalendarEvent> {
     return this.executeWithErrorHandling('getEvent', async () => {
       const apt = await this.getClient().getAppointment(eventId);
-      const targetCalendarId = calendarId ?? (await this.listCalendars())[0]?.id ?? '';
-      return mapEwsEvent(this.appointmentToObject(apt), targetCalendarId);
+      const calendars = await this.listCalendars();
+      const targetCalendar = calendarId
+        ? calendars.find(c => c.id === calendarId) ?? calendars[0]
+        : calendars[0];
+      return mapEwsEvent(this.appointmentToObject(apt), targetCalendar?.id ?? '', targetCalendar?.email);
     });
   }
 
@@ -253,10 +256,13 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
   ): Promise<CalendarEvent> {
     return this.executeWithErrorHandling('createEvent', async () => {
       // Determine target calendar - use provided or fall back to first available
-      const targetCalendarId = calendarId ?? (await this.listCalendars())[0]?.id;
+      const calendars = await this.listCalendars();
+      const targetCalendar = calendarId
+        ? calendars.find(c => c.id === calendarId) ?? calendars[0]
+        : calendars[0];
 
       const apt = await this.getClient().createAppointment({
-        folderId: targetCalendarId,
+        folderId: targetCalendar?.id,
         subject: event.subject,
         body: event.body,
         bodyType: event.bodyType,
@@ -275,7 +281,7 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
         sendInvites: event.sendInvites,
       });
 
-      return mapEwsEvent(this.appointmentToObject(apt), targetCalendarId ?? '');
+      return mapEwsEvent(this.appointmentToObject(apt), targetCalendar?.id ?? '', targetCalendar?.email);
     });
   }
 
@@ -297,8 +303,11 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
         sendUpdates: updates.sendUpdates,
       });
 
-      const targetCalendarId = calendarId ?? (await this.listCalendars())[0]?.id ?? '';
-      return mapEwsEvent(this.appointmentToObject(apt), targetCalendarId);
+      const calendars = await this.listCalendars();
+      const targetCalendar = calendarId
+        ? calendars.find(c => c.id === calendarId) ?? calendars[0]
+        : calendars[0];
+      return mapEwsEvent(this.appointmentToObject(apt), targetCalendar?.id ?? '', targetCalendar?.email);
     });
   }
 

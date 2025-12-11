@@ -297,7 +297,7 @@ function detectMeetingProvider(item: EwsCalendarItem): OnlineMeetingProvider | u
 /**
  * Map EWS CalendarItem to our CalendarEvent format
  */
-export function mapEwsEvent(ewsItem: EwsCalendarItem, calendarId: string): CalendarEvent {
+export function mapEwsEvent(ewsItem: EwsCalendarItem, calendarId: string, calendarEmail?: string): CalendarEvent {
   const start = parseEwsDateTime(ewsItem.Start);
   const end = parseEwsDateTime(ewsItem.End);
 
@@ -329,6 +329,7 @@ export function mapEwsEvent(ewsItem: EwsCalendarItem, calendarId: string): Calen
     id: ewsItem.ItemId?.Id ?? '',
     provider: 'exchange',
     calendarId,
+    calendarEmail,
     iCalUId: ewsItem.ICalUid ?? undefined,
 
     subject: ewsItem.Subject ?? '(No title)',

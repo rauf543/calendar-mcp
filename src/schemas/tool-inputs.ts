@@ -59,8 +59,8 @@ export type ListEventsInput = z.infer<typeof ListEventsInputSchema>;
 export const GetEventInputSchema = z.object({
   eventId: z.string().min(1).describe('Event ID'),
   provider: ProviderTypeSchema.describe('Which provider the event belongs to'),
-  calendarId: z.string().optional()
-    .describe('Calendar ID (required for some providers)'),
+  calendarId: z.string().min(1)
+    .describe('Calendar ID (use list_calendars to get available IDs)'),
 });
 
 export type GetEventInput = z.infer<typeof GetEventInputSchema>;
@@ -71,8 +71,8 @@ export type GetEventInput = z.infer<typeof GetEventInputSchema>;
 
 export const CreateEventInputSchema = z.object({
   provider: ProviderTypeSchema.describe('Which provider to create the event on'),
-  calendarId: z.string().optional()
-    .describe('Calendar ID (default: primary)'),
+  calendarId: z.string().min(1)
+    .describe('Calendar ID (use list_calendars to get available IDs)'),
   subject: z.string().min(1).max(500).describe('Event title/subject'),
   body: z.string().max(10000).optional()
     .describe('Event description/body'),
@@ -113,8 +113,8 @@ export type CreateEventInput = z.infer<typeof CreateEventInputSchema>;
 export const UpdateEventInputSchema = z.object({
   eventId: z.string().min(1).describe('Event ID'),
   provider: ProviderTypeSchema.describe('Which provider the event belongs to'),
-  calendarId: z.string().optional()
-    .describe('Calendar ID'),
+  calendarId: z.string().min(1)
+    .describe('Calendar ID (use list_calendars to get available IDs)'),
   subject: z.string().min(1).max(500).optional()
     .describe('New event title'),
   body: z.string().max(10000).optional()
@@ -150,8 +150,8 @@ export type UpdateEventInput = z.infer<typeof UpdateEventInputSchema>;
 export const DeleteEventInputSchema = z.object({
   eventId: z.string().min(1).describe('Event ID'),
   provider: ProviderTypeSchema.describe('Which provider the event belongs to'),
-  calendarId: z.string().optional()
-    .describe('Calendar ID'),
+  calendarId: z.string().min(1)
+    .describe('Calendar ID (use list_calendars to get available IDs)'),
   deleteScope: DeleteScopeSchema.optional().default('single')
     .describe('For recurring events: what to delete'),
   sendCancellation: z.boolean().optional()
@@ -203,8 +203,8 @@ export type CheckConflictsInput = z.infer<typeof CheckConflictsInputSchema>;
 export const RespondToInviteInputSchema = z.object({
   eventId: z.string().min(1).describe('Event ID'),
   provider: ProviderTypeSchema.describe('Which provider the event belongs to'),
-  calendarId: z.string().optional()
-    .describe('Calendar ID'),
+  calendarId: z.string().min(1)
+    .describe('Calendar ID (use list_calendars to get available IDs)'),
   response: ResponseTypeSchema.describe('Response: accepted, declined, or tentative'),
   message: z.string().max(1000).optional()
     .describe('Optional response message'),

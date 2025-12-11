@@ -11,6 +11,7 @@ import {
   CalendarView,
   WellKnownFolderName,
   ItemId,
+  FolderId,
   Appointment,
   SendInvitationsMode,
   ConflictResolutionMode,
@@ -111,7 +112,10 @@ export class ExchangeEwsClient {
       );
       calendarView.MaxItemsReturned = params.maxResults ?? 100;
 
-      const folder = await CalendarFolder.Bind(this.service, WellKnownFolderName.Calendar);
+      // Bind to specific folder if provided, otherwise use default Calendar
+      const folder = params.folderId
+        ? await CalendarFolder.Bind(this.service, new FolderId(params.folderId))
+        : await CalendarFolder.Bind(this.service, WellKnownFolderName.Calendar);
 
       const results = await folder.FindAppointments(calendarView);
       return results.Items as Appointment[];
@@ -141,6 +145,7 @@ export class ExchangeEwsClient {
    * Create a new appointment
    */
   async createAppointment(params: {
+    folderId?: string;
     subject: string;
     body?: string;
     bodyType?: 'text' | 'html';
@@ -213,7 +218,12 @@ export class ExchangeEwsClient {
         ? SendInvitationsMode.SendToAllAndSaveCopy
         : SendInvitationsMode.SendToNone;
 
-      await appointment.Save(sendMode);
+      // Save to specific folder if provided, otherwise use default Calendar
+      if (params.folderId) {
+        await appointment.Save(new FolderId(params.folderId), sendMode);
+      } else {
+        await appointment.Save(sendMode);
+      }
 
       return appointment;
     } catch (error) {
@@ -372,12 +382,14 @@ export class ExchangeEwsClient {
    * Note: EWS has GetUserAvailability but ews-javascript-api support may be limited
    */
   async getFreeBusy(params: {
+    folderId?: string;
     startTime: Date;
     endTime: Date;
   }): Promise<Array<{ start: string; end: string; status: string }>> {
     try {
       // For simplicity, we query appointments and derive busy times
       const appointments = await this.listEvents({
+        folderId: params.folderId,
         startDate: params.startTime,
         endDate: params.endTime,
         maxResults: 500,

@@ -65,7 +65,9 @@ export function formatListCalendarsResult(result: ListCalendarsResult): string {
     for (const cal of cals) {
       const primary = cal.isPrimary ? ' (primary)' : '';
       const access = cal.accessRole ? ` [${cal.accessRole}]` : '';
-      lines.push(`  - ${cal.name}${primary}${access}`);
+      // Include email to differentiate calendars with same name (e.g., multiple "Calendar" from different accounts)
+      const displayName = cal.email ? `${cal.name} (${cal.email})` : cal.name;
+      lines.push(`  - ${displayName}${primary}${access}`);
       lines.push(`    ID: ${cal.id}`);
     }
     lines.push('');

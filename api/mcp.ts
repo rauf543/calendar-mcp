@@ -476,7 +476,8 @@ export default async function (req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      // Only expose stack traces in development to prevent information leakage
+      ...(process.env.NODE_ENV !== 'production' && error instanceof Error && { stack: error.stack })
     });
   }
 }

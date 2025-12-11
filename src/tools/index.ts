@@ -119,7 +119,7 @@ export const toolDefinitions = [
   },
   {
     name: 'get_event',
-    description: 'Get detailed information about a specific event by ID. Returns full event details including attendees, recurrence, and online meeting links.',
+    description: 'Get detailed information about a specific event by ID. Returns full event details including attendees, recurrence, and online meeting links. IMPORTANT: If the user has more than one calendar connected, ALWAYS include the calendarId to ensure the correct account is used.',
     inputSchema: zodToJsonSchema(GetEventInputSchema),
   },
   {
@@ -129,12 +129,12 @@ export const toolDefinitions = [
   },
   {
     name: 'update_event',
-    description: 'Update an existing calendar event. For recurring events, can update single instance, this and future, or all instances.',
+    description: 'Update an existing calendar event. For recurring events, can update single instance, this and future, or all instances. IMPORTANT: If the user has more than one calendar connected, ALWAYS include the calendarId to ensure the correct account is used.',
     inputSchema: zodToJsonSchema(UpdateEventInputSchema),
   },
   {
     name: 'delete_event',
-    description: 'Delete a calendar event. For recurring events, can delete single instance, this and future, or entire series.',
+    description: 'Delete a calendar event. For recurring events, can delete single instance, this and future, or entire series. IMPORTANT: If the user has more than one calendar connected, ALWAYS include the calendarId to ensure the correct account is used.',
     inputSchema: zodToJsonSchema(DeleteEventInputSchema),
   },
   {
@@ -149,7 +149,7 @@ export const toolDefinitions = [
   },
   {
     name: 'respond_to_invite',
-    description: 'Respond to a meeting invitation (accept, decline, or tentative). Optionally include a response message.',
+    description: 'Respond to a meeting invitation (accept, decline, or tentative). Optionally include a response message. IMPORTANT: If the user has more than one calendar connected, ALWAYS include the calendarId to ensure the correct account is used.',
     inputSchema: zodToJsonSchema(RespondToInviteInputSchema),
   },
   {

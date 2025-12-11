@@ -171,7 +171,7 @@ export class CalendarService {
     provider: ProviderType,
     calendarId?: string
   ): Promise<CalendarEvent> {
-    const providerInstance = this.getProviderByType(provider);
+    const providerInstance = await this.getProviderForCalendar(provider, calendarId);
     return providerInstance.getEvent(eventId, calendarId);
   }
 
@@ -183,7 +183,7 @@ export class CalendarService {
     provider: ProviderType,
     calendarId?: string
   ): Promise<CalendarEvent> {
-    const providerInstance = this.getProviderByType(provider);
+    const providerInstance = await this.getProviderForCalendar(provider, calendarId);
     return providerInstance.createEvent(params, calendarId);
   }
 
@@ -196,7 +196,7 @@ export class CalendarService {
     provider: ProviderType,
     calendarId?: string
   ): Promise<CalendarEvent> {
-    const providerInstance = this.getProviderByType(provider);
+    const providerInstance = await this.getProviderForCalendar(provider, calendarId);
     return providerInstance.updateEvent(eventId, updates, calendarId);
   }
 
@@ -209,7 +209,7 @@ export class CalendarService {
     options?: DeleteOptions,
     calendarId?: string
   ): Promise<void> {
-    const providerInstance = this.getProviderByType(provider);
+    const providerInstance = await this.getProviderForCalendar(provider, calendarId);
     return providerInstance.deleteEvent(eventId, options, calendarId);
   }
 
@@ -223,7 +223,7 @@ export class CalendarService {
     calendarId?: string,
     message?: string
   ): Promise<void> {
-    const providerInstance = this.getProviderByType(provider);
+    const providerInstance = await this.getProviderForCalendar(provider, calendarId);
     return providerInstance.respondToEvent(eventId, response, calendarId, message);
   }
 
@@ -232,13 +232,22 @@ export class CalendarService {
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Get a provider by type (returns first matching connected provider)
+   * Get the provider that owns a specific calendar.
+   *
+   * When multiple providers of the same type exist (e.g., 2 Exchange accounts),
+   * this finds the provider that actually owns the specified calendarId by
+   * checking each provider's calendars.
+   *
+   * Falls back to first connected provider if:
+   * - No calendarId specified
+   * - Only one provider of that type exists
+   * - CalendarId not found in any provider
    */
-  private getProviderByType(type: ProviderType) {
+  private async getProviderForCalendar(type: ProviderType, calendarId?: string) {
     const providers = this.registry.getByType(type);
-    const connected = providers.find(p => p.isConnected());
+    const connected = providers.filter(p => p.isConnected());
 
-    if (!connected) {
+    if (connected.length === 0) {
       throw new CalendarMCPError(
         `No connected ${type} provider found`,
         ErrorCodes.PROVIDER_NOT_FOUND,
@@ -246,7 +255,22 @@ export class CalendarService {
       );
     }
 
-    return connected;
+    // Fast path: only one provider or no calendarId to match
+    if (connected.length === 1 || !calendarId) {
+      return connected[0]!;
+    }
+
+    // Find the provider that owns this calendarId
+    for (const provider of connected) {
+      const calendars = await provider.listCalendars();
+      if (calendars.some(cal => cal.id === calendarId)) {
+        return provider;
+      }
+    }
+
+    // CalendarId not found in any provider - fall back to first
+    // (let the provider handle the error with more context)
+    return connected[0]!;
   }
 
   /**

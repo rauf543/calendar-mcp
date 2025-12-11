@@ -423,7 +423,9 @@ export default async function (req: VercelRequest, res: VercelResponse) {
   console.log('[MCP] Request received:', req.method, req.url);
 
   // Health check endpoint
-  if (req.url === '/api/mcp/health' || req.query?.health === 'true') {
+  // Use pathname for robust URL matching (handles query params correctly)
+  const pathname = new URL(req.url!, `http://${req.headers.host || 'localhost'}`).pathname;
+  if (pathname === '/api/mcp/health' || req.query?.health === 'true') {
     console.log('[MCP] Health check response');
     return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   }

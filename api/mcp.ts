@@ -119,6 +119,7 @@ function getServices(): Promise<Services> {
           console.log(`[MCP] Registered provider: ${providerConfig.id} (${providerConfig.type})`);
         } catch (error) {
           console.error(`[MCP] Failed to initialize provider ${providerConfig.id}:`, error);
+          throw new Error(`Provider initialization failed for ${providerConfig.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 

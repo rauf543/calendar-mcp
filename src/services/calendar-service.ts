@@ -260,12 +260,17 @@ export class CalendarService {
       return connected[0]!;
     }
 
-    // Find the provider that owns this calendarId
-    for (const provider of connected) {
-      const calendars = await provider.listCalendars();
-      if (calendars.some(cal => cal.id === calendarId)) {
-        return provider;
-      }
+    // Find the provider that owns this calendarId (query in parallel for performance)
+    const ownerChecks = await Promise.all(
+      connected.map(async provider => {
+        const calendars = await provider.listCalendars();
+        return { provider, ownsCalendar: calendars.some(cal => cal.id === calendarId) };
+      })
+    );
+
+    const owner = ownerChecks.find(check => check.ownsCalendar);
+    if (owner) {
+      return owner.provider;
     }
 
     // CalendarId not found in any provider - fall back to first

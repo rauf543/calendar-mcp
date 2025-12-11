@@ -242,10 +242,7 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
   async getEvent(eventId: string, calendarId?: string): Promise<CalendarEvent> {
     return this.executeWithErrorHandling('getEvent', async () => {
       const apt = await this.getClient().getAppointment(eventId);
-      const calendars = await this.listCalendars();
-      const targetCalendar = calendarId
-        ? calendars.find(c => c.id === calendarId) ?? calendars[0]
-        : calendars[0];
+      const targetCalendar = await this.getTargetCalendar(calendarId);
       return mapEwsEvent(this.appointmentToObject(apt), targetCalendar?.id ?? '', targetCalendar?.email);
     });
   }
@@ -255,11 +252,7 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
     calendarId?: string
   ): Promise<CalendarEvent> {
     return this.executeWithErrorHandling('createEvent', async () => {
-      // Determine target calendar - use provided or fall back to first available
-      const calendars = await this.listCalendars();
-      const targetCalendar = calendarId
-        ? calendars.find(c => c.id === calendarId) ?? calendars[0]
-        : calendars[0];
+      const targetCalendar = await this.getTargetCalendar(calendarId);
 
       const apt = await this.getClient().createAppointment({
         folderId: targetCalendar?.id,
@@ -303,10 +296,7 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
         sendUpdates: updates.sendUpdates,
       });
 
-      const calendars = await this.listCalendars();
-      const targetCalendar = calendarId
-        ? calendars.find(c => c.id === calendarId) ?? calendars[0]
-        : calendars[0];
+      const targetCalendar = await this.getTargetCalendar(calendarId);
       return mapEwsEvent(this.appointmentToObject(apt), targetCalendar?.id ?? '', targetCalendar?.email);
     });
   }
@@ -327,16 +317,10 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
 
   async getFreeBusy(params: FreeBusyParams): Promise<CalendarFreeBusy> {
     return this.executeWithErrorHandling('getFreeBusy', async () => {
-      const calendars = await this.listCalendars();
-
-      // Use specified calendar or fall back to first available
-      let targetCalendar = calendars[0];
-      if (params.calendarIds && params.calendarIds.length > 0) {
-        const specified = calendars.find(c => params.calendarIds!.includes(c.id));
-        if (specified) {
-          targetCalendar = specified;
-        }
-      }
+      // Note: Currently returns free/busy for a single calendar.
+      // Multi-calendar aggregation happens at the FreeBusyService level.
+      // See Issue #6 for sub-calendar support enhancements.
+      const targetCalendar = await this.getTargetCalendar(params.calendarIds?.[0]);
 
       const busyTimes = await this.getClient().getFreeBusy({
         folderId: targetCalendar?.id,
@@ -383,6 +367,18 @@ export class ExchangeCalendarProvider extends BaseCalendarProvider {
   // ─────────────────────────────────────────────────────────────────────────────
   // Helper Methods
   // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Get the target calendar for an operation.
+   * Returns the calendar matching calendarId, or falls back to first available.
+   */
+  private async getTargetCalendar(calendarId?: string): Promise<Calendar | undefined> {
+    const calendars = await this.listCalendars();
+    if (calendarId) {
+      return calendars.find(c => c.id === calendarId) ?? calendars[0];
+    }
+    return calendars[0];
+  }
 
   /**
    * Invalidate the calendars cache

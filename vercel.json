@@ -9,6 +9,22 @@
     {
       "source": "/mcp",
       "destination": "/api/mcp"
+    },
+    {
+      "source": "/api/sse",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/api/message",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/sse",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/message",
+      "destination": "/api/mcp"
     }
   ]
 }

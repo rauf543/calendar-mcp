@@ -7,6 +7,7 @@ import type { ConflictCheckResult, CheckConflictsParams } from '../types/index.j
 import type { ConflictService } from '../services/conflict-service.js';
 import type { CheckConflictsInput } from '../schemas/tool-inputs.js';
 import { DateTime } from 'luxon';
+import { getDefaultTimezone } from '../utils/datetime.js';
 
 /**
  * Execute check_conflicts tool
@@ -30,6 +31,7 @@ export async function executeCheckConflicts(
  */
 export function formatCheckConflictsResult(result: ConflictCheckResult): string {
   const lines: string[] = [];
+  const displayTimezone = getDefaultTimezone();
 
   if (!result.hasConflict) {
     lines.push('✅ **No conflicts found!**');
@@ -39,11 +41,12 @@ export function formatCheckConflictsResult(result: ConflictCheckResult): string 
   }
 
   lines.push(`⚠️ **${result.conflicts.length} Conflict(s) Found**`);
+  lines.push(`(Times shown in ${displayTimezone})`);
   lines.push('');
 
   for (const conflict of result.conflicts) {
-    const start = DateTime.fromISO(conflict.start);
-    const end = DateTime.fromISO(conflict.end);
+    const start = DateTime.fromISO(conflict.start).setZone(displayTimezone);
+    const end = DateTime.fromISO(conflict.end).setZone(displayTimezone);
 
     lines.push(`**${conflict.subject}**`);
     lines.push(`   📅 ${start.toFormat('EEE, MMM d')}: ${start.toFormat('h:mm a')} - ${end.toFormat('h:mm a')}`);
@@ -55,8 +58,8 @@ export function formatCheckConflictsResult(result: ConflictCheckResult): string 
 
   if (result.suggestion) {
     lines.push('💡 **Suggested Alternative:**');
-    const sugStart = DateTime.fromISO(result.suggestion.start);
-    const sugEnd = DateTime.fromISO(result.suggestion.end);
+    const sugStart = DateTime.fromISO(result.suggestion.start).setZone(displayTimezone);
+    const sugEnd = DateTime.fromISO(result.suggestion.end).setZone(displayTimezone);
     lines.push(`   ${sugStart.toFormat('EEE, MMM d')}: ${sugStart.toFormat('h:mm a')} - ${sugEnd.toFormat('h:mm a')}`);
     lines.push(`   ${result.suggestion.reason}`);
   }

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/api/sse",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/api/message",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/sse",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/message",
+      "destination": "/api/mcp"
+    }
+  ]
+}

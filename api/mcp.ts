@@ -470,10 +470,34 @@ export default async function (req: VercelRequest, res: VercelResponse) {
       res.setHeader(key, value);
     });
 
-    // Send body
-    const body = await webResponse.text();
-    console.log('[MCP] Response body length:', body.length);
-    return res.send(body);
+    // Check if this is a streaming response (SSE or chunked)
+    const contentType = webResponse.headers.get('content-type') || '';
+    const isStreaming = contentType.includes('text/event-stream') ||
+                        webResponse.headers.get('transfer-encoding') === 'chunked';
+
+    if (isStreaming && webResponse.body) {
+      // Stream the response for SSE/chunked transfers
+      console.log('[MCP] Streaming response');
+      const reader = webResponse.body.getReader();
+      const decoder = new TextDecoder();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          res.write(chunk);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      return res.end();
+    } else {
+      // Buffer non-streaming responses
+      const body = await webResponse.text();
+      console.log('[MCP] Response body length:', body.length);
+      return res.send(body);
+    }
   } catch (error) {
     console.error('[MCP] Handler error:', error);
     return res.status(500).json({
